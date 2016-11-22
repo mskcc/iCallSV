@@ -27,9 +27,11 @@ import vcf
 import checkparameters as cp
 import pandas as pd
 import re
+import coloredlogs
+import numpy as np
 
 logger = logging.getLogger('iCallSV.mergeFinalFiles')
-
+coloredlogs.install(level='DEBUG')
 
 def run(aId, bId, vcfFile, annoTab, confTab, outDir, outputPrefix, verbose):
     """
@@ -128,14 +130,15 @@ def run(aId, bId, vcfFile, annoTab, confTab, outDir, outputPrefix, verbose):
          start2,
          chrom2,
          filter,
-         svlengthFromDelly,
-         mapqFromDelly,
          svtype,
          brktype,
+         contype,
+         conseq) = (None for i in range(9))
+         
+        (svlengthFromDelly,
+         mapqFromDelly,
          peSupportFromDelly,
          srSupportFromDelly,
-         contype,
-         conseq,
          ciEndNeg,
          ciEndPos,
          ciPosNeg,
@@ -151,7 +154,7 @@ def run(aId, bId, vcfFile, annoTab, confTab, outDir, outputPrefix, verbose):
          controlDR,
          controlDV,
          controlRR,
-         controlRV) = (None for i in range(29))
+         controlRV) = (0 for i in range(20))
         chrom1 = str(record.CHROM)
         start1 = record.POS
         filter = record.FILTER
@@ -167,18 +170,18 @@ def run(aId, bId, vcfFile, annoTab, confTab, outDir, outputPrefix, verbose):
         if("SVTYPE" in record.INFO):
             svtype = record.INFO['SVTYPE']
         if("SVLEN" in record.INFO):
-            svlengthFromDelly = record.INFO['SVLEN']
+            svlengthFromDelly = np.int(record.INFO['SVLEN'])
         else:
             if(svtype == "TRA"):
                 svlengthFromDelly = None
             else:
-                svlengthFromDelly = abs(start2 - start1)
+                svlengthFromDelly = np.int(abs(start2 - start1))
         if("MAPQ" in record.INFO):
-            mapqFromDelly = record.INFO['MAPQ']
+            mapqFromDelly =  np.int(record.INFO['MAPQ'])
         if("PE" in record.INFO):
-            peSupportFromDelly = record.INFO['PE']
+            peSupportFromDelly = np.int(record.INFO['PE'])
         if("SR" in record.INFO):
-            srSupportFromDelly = record.INFO['SR']
+            srSupportFromDelly = np.int(record.INFO['SR'])
         if("CT" in record.INFO):
             contype = record.INFO['CT']
         if("CONSENSUS" in record.INFO):
@@ -204,30 +207,30 @@ def run(aId, bId, vcfFile, annoTab, confTab, outDir, outputPrefix, verbose):
         controlCalls = record.genotype(controlIDinVcf)
 
         if(hasattr(caseCalls.data, "GQ")):
-            caseGQ = caseCalls.data.GQ
+            caseGQ = np.int(caseCalls.data.GQ)
         if(hasattr(caseCalls.data, "RC")):
-            caseRC = caseCalls.data.RC
+            caseRC = np.int(caseCalls.data.RC)
         if(hasattr(caseCalls.data, "DR")):
-            caseDR = caseCalls.data.DR
+            caseDR = np.int(caseCalls.data.DR)
         if(hasattr(caseCalls.data, "DV")):
-            caseDV = caseCalls.data.DV
+            caseDV = np.int(caseCalls.data.DV)
         if(hasattr(caseCalls.data, "RR")):
-            caseRR = caseCalls.data.RR
+            caseRR = np.int(caseCalls.data.RR)
         if(hasattr(caseCalls.data, "RV")):
-            caseRV = caseCalls.data.RV
+            caseRV = np.int(caseCalls.data.RV)
 
         if(hasattr(controlCalls.data, "GQ")):
-            controlGQ = controlCalls.data.GQ
+            controlGQ = np.int(controlCalls.data.GQ)
         if(hasattr(controlCalls.data, "RC")):
-            controlRC = controlCalls.data.RC
+            controlRC = np.int(controlCalls.data.RC)
         if(hasattr(controlCalls.data, "DR")):
-            controlDR = controlCalls.data.DR
+            controlDR = np.int(controlCalls.data.DR)
         if(hasattr(controlCalls.data, "DV")):
-            controlDV = controlCalls.data.DV
+            controlDV = np.int(controlCalls.data.DV)
         if(hasattr(controlCalls.data, "RR")):
-            controlRR = controlCalls.data.RR
+            controlRR = np.int(controlCalls.data.RR)
         if(hasattr(controlCalls.data, "RV")):
-            controlRV = controlCalls.data.RV
+            controlRV = np.int(controlCalls.data.RV)
 
         # Get data from annotation file
         (indexList,
@@ -239,7 +242,6 @@ def run(aId, bId, vcfFile, annoTab, confTab, outDir, outputPrefix, verbose):
          site1,
          site2,
          fusion,
-         cosmic_fusion_counts,
          rr_site1,
          rr_site2,
          cc_chr_band,
@@ -249,9 +251,12 @@ def run(aId, bId, vcfFile, annoTab, confTab, outDir, outputPrefix, verbose):
          cc_t_p,
          dgv_site1,
          dgv_site2
-         ) = (None for i in range(19))
+         ) = (None for i in range(18))
+        cosmic_fusion_counts = 0
 
         annoDF[['chr1', 'chr2']] = annoDF[['chr1', 'chr2']].astype(str)
+        annoDF['Cosmic_Fusion_Counts'].fillna(0, inplace=True)
+        annoDF[['Cosmic_Fusion_Counts']] = annoDF[['Cosmic_Fusion_Counts']].astype(int)
         indexList = annoDF.loc[annoDF['chr1'].isin([chrom1]) &
                                annoDF['pos1'].isin([int(start1)]) &
                                annoDF['chr2'].isin([chrom2]) &
@@ -273,7 +278,7 @@ def run(aId, bId, vcfFile, annoTab, confTab, outDir, outputPrefix, verbose):
         fusion = annoDF.iloc[annoIndex]['fusion']
         rr_site1 = annoDF.iloc[annoIndex]['repName-repClass-repFamily:-site1']
         rr_site2 = annoDF.iloc[annoIndex]['repName-repClass-repFamily:-site2']
-        cosmic_fusion_counts = str(annoDF.iloc[annoIndex]['Cosmic_Fusion_Counts'])
+        cosmic_fusion_counts = int(annoDF.iloc[annoIndex]['Cosmic_Fusion_Counts'])
         cc_chr_band = annoDF.iloc[annoIndex]['CC_Chr_Band']
         cc_t_t = annoDF.iloc[annoIndex]['CC_Tumour_Types(Somatic)']
         cc_c_s = annoDF.iloc[annoIndex]['CC_Cancer_Syndrome']
@@ -301,7 +306,7 @@ def run(aId, bId, vcfFile, annoTab, confTab, outDir, outputPrefix, verbose):
                 sys.exit(1)
             else:
                 confIndex = indexList[0]
-            confidenceScore = confDF.iloc[confIndex]['ProbabilityScore']
+            confidenceScore = np.float(confDF.iloc[confIndex]['ProbabilityScore'])
 
         # populate final dataframe
         outDF.loc[count,
